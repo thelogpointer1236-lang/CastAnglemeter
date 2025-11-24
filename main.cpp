@@ -5,6 +5,9 @@
 
 using namespace cv;
 
+// ------------------------------------
+// Контейнер результата подбора прямой
+// ------------------------------------
 struct LineFitResult {
     bool ok;
     float nx, ny;
@@ -12,7 +15,9 @@ struct LineFitResult {
     float angle;
 };
 
+// ------------------------------------
 // Унифицированная функция для RANSAC + отрисовки
+// ------------------------------------
 static LineFitResult runRansacDraw(
     anglemeter_t* am,
     Mat& frame,
@@ -70,6 +75,9 @@ static LineFitResult runRansacDraw(
     return r;
 }
 
+// ------------------------------------
+// Точка входа: обработка видео и логирование углов
+// ------------------------------------
 int main() {
     VideoCapture cap("video.avi");
     if (!cap.isOpened())
@@ -81,7 +89,9 @@ int main() {
     anglemeterCreate(&am);
     anglemeterSetImageSize(am, 640, 480);
 
+    // ------------------------------------
     // Создаём csv, перезаписывая старый
+    // ------------------------------------
     std::ofstream csv("angles.csv", std::ios::trunc);
     csv << "frame,angle1,angle2,compute_ms\n";
 
@@ -99,7 +109,9 @@ int main() {
         cvtColor(frame, rgb, COLOR_BGR2RGB);
         const rgb_t* img_rgb = reinterpret_cast<const rgb_t*>(rgb.data);
 
+        // ------------------------------------
         // Засекаем ВСЁ вычисление углов
+        // ------------------------------------
         t_all.reset();
         t_all.start();
 
@@ -109,7 +121,9 @@ int main() {
         scan(am, img_rgb, &dir);
         selectPoints(am, dir);
 
+        // ------------------------------------
         // RANSAC + рисование
+        // ------------------------------------
         LineFitResult r1 = runRansacDraw(am,
             frame, am->points_1, dir,
             Scalar(255,0,0),
@@ -124,11 +138,15 @@ int main() {
 
         t_all.stop();
 
+        // ------------------------------------
         // Углы для записи
+        // ------------------------------------
         float a1 = r1.ok ? r1.angle : 0.0f;
         float a2 = r2.ok ? r2.angle : 0.0f;
 
+        // ------------------------------------
         // Пишем в CSV
+        // ------------------------------------
         csv << frameIndex << "," << a1 << "," << a2 << "," << t_all.getTimeMilli() << "\n";
 
         imshow("Video", frame);

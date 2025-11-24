@@ -7,31 +7,49 @@
 #include <vector>
 #define M_PI 3.14159265358979323846
 
+// ------------------------------------
+// Простейшие структуры координат
+// ------------------------------------
 struct pos_t {
     uint16_t x;
     uint16_t y;
 };
 
+// ------------------------------------
+// Координата в виде float для точной геометрии
+// ------------------------------------
 struct posf_t {
     float x;
     float y;
 };
 
+// ------------------------------------
+// Удобный переход из целочисленных координат в вещественные
+// ------------------------------------
 inline posf_t pos2f(const pos_t p) {
     return posf_t{ static_cast<float>(p.x), static_cast<float>(p.y) };
 }
 
+// ------------------------------------
+// Результаты поиска перепадов яркости по линии сканирования
+// ------------------------------------
 struct scan_t {
     pos_t posDifMin;
     pos_t posDifMax;
 };
 
+// ------------------------------------
+// Цвет пикселя в формате RGB
+// ------------------------------------
 struct rgb_t {
     uint8_t r;
     uint8_t g;
     uint8_t b;
 };
 
+// ------------------------------------
+// Вспомогательные структуры для локального анализа
+// ------------------------------------
 namespace {
     struct EdgeY {
         int y;
@@ -60,6 +78,9 @@ namespace {
     };
 }
 
+// ------------------------------------
+// Основное состояние алгоритма измерения угла
+// ------------------------------------
 struct anglemeter_t {
     int img_width;
     int img_height;
@@ -76,14 +97,23 @@ struct anglemeter_t {
     float last_angle_deg;
 };
 
+// ------------------------------------
+// Проверка валидности результата сканирования
+// ------------------------------------
 inline bool isValidScan(const scan_t* scan) {
     return scan->posDifMin.x != 0ui16;
 }
 
+// ------------------------------------
+// Сброс результата сканирования
+// ------------------------------------
 inline void invalidateScan(scan_t* scan) {
     scan->posDifMin.x = 0ui16;
 }
 
+// ------------------------------------
+// Создание и инициализация структуры измерителя угла
+// ------------------------------------
 void anglemeterCreate(anglemeter_t** am_ptr) {
     auto *am = new anglemeter_t();
     am->img_width = 0;
@@ -94,10 +124,16 @@ void anglemeterCreate(anglemeter_t** am_ptr) {
     *am_ptr = am;
 }
 
+// ------------------------------------
+// Корректное освобождение ресурсов
+// ------------------------------------
 void anglemeterDestroy(anglemeter_t* am) {
     delete am;
 }
 
+// ------------------------------------
+// Настройка размеров входного изображения
+// ------------------------------------
 void anglemeterSetImageSize(anglemeter_t* am, int width, int height) {
     am->img_width = width;
     am->img_height = height;
@@ -108,6 +144,9 @@ void anglemeterSetImageSize(anglemeter_t* am, int width, int height) {
     am->points_2.reserve(static_cast<size_t>(std::max(width, height)));
 }
 
+// ------------------------------------
+// Полный сброс внутренних буферов перед новым кадром
+// ------------------------------------
 void anglemeterRestoreState(anglemeter_t* am) {
     const auto w = static_cast<size_t>(am->img_width);
     const auto h = static_cast<size_t>(am->img_height);
@@ -122,10 +161,16 @@ void anglemeterRestoreState(anglemeter_t* am) {
 }
 
 
+// ------------------------------------
+// Быстрый расчёт яркости пикселя в приблизительном сером
+// ------------------------------------
 inline int brightness(const uint8_t r, const uint8_t g, const uint8_t b) {
     return ((r + g + b) * 21845) >> 16;
 }
 
+// ------------------------------------
+// Сканирование столбца изображения и поиск перепадов яркости
+// ------------------------------------
 inline void scanCol(anglemeter_t* am, const rgb_t* img, const int x, const int y_from, const int y_to)
 {
     const int height = am->img_height;
@@ -242,6 +287,9 @@ inline void scanCol(anglemeter_t* am, const rgb_t* img, const int x, const int y
     scan->posDifMax = { static_cast<uint16_t>(x), static_cast<uint16_t>(best->yMax) };
 }
 
+// ------------------------------------
+// Сканирование строки изображения и поиск перепадов яркости
+// ------------------------------------
 inline void scanRow(anglemeter_t* am, const rgb_t* img, const int y, const int x_from, const int x_to)
 {
     const int height = am->img_height;
@@ -358,6 +406,9 @@ inline void scanRow(anglemeter_t* am, const rgb_t* img, const int y, const int x
     scan->posDifMax = { static_cast<uint16_t>(best->xMax), static_cast<uint16_t>(y) };
 }
 
+// ------------------------------------
+// Поиск границы при движении вдоль столбцов в заданном направлении
+// ------------------------------------
 inline bool scanColsDirectional(
     anglemeter_t* am, const rgb_t* img, int* count,
     int x_start, int x_stop, int x_step,
@@ -481,6 +532,9 @@ inline bool scanColsDirectional(
 }
 
 
+// ------------------------------------
+// Поиск границы при движении вдоль строк в заданном направлении
+// ------------------------------------
 inline bool scanRowsDirectional(
     anglemeter_t* am, const rgb_t* img, int* count,
     int y_start, int y_stop, int y_step,
@@ -603,6 +657,9 @@ inline bool scanRowsDirectional(
 }
 
 
+// ------------------------------------
+// Попытка найти границы через вертикальные сканы
+// ------------------------------------
 inline bool scanCols(anglemeter_t* am, const rgb_t* img, int* dir)
 {
     const int width  = am->img_width;
@@ -668,6 +725,9 @@ inline bool scanCols(anglemeter_t* am, const rgb_t* img, int* dir)
 
 
 
+// ------------------------------------
+// Попытка найти границы через горизонтальные сканы
+// ------------------------------------
 inline bool scanRows(anglemeter_t* am, const rgb_t* img, int* dir)
 {
     const int width  = am->img_width;
@@ -729,6 +789,9 @@ inline bool scanRows(anglemeter_t* am, const rgb_t* img, int* dir)
 }
 
 // dir: 1 - left, 2 - right, 3 - up, 4 - down
+// ------------------------------------
+// Главный поиск ориентира: выбираем стратегию по последнему углу
+// ------------------------------------
 inline bool scan(anglemeter_t* am, const rgb_t* img, int* dir) {
     bool c = false, r = false;
     const float a = am->last_angle_deg;
@@ -760,6 +823,9 @@ inline bool scan(anglemeter_t* am, const rgb_t* img, int* dir) {
 }
 
 
+// ------------------------------------
+// Формирование набора опорных точек в выбранной половине кадра
+// ------------------------------------
 inline void selectPoints(anglemeter_t* am, int dir) {
     if (dir == 1) {
         for (int x =  am->img_width / 2 - 1; x > 0; --x) {
@@ -800,6 +866,9 @@ inline void selectPoints(anglemeter_t* am, int dir) {
 }
 
 
+// ------------------------------------
+// Подсчёт количества точек, лежащих в окрестности прямой
+// ------------------------------------
 inline uint16_t cntOnLine(
     const posf_t* points,
     const int cnt,
@@ -825,6 +894,9 @@ inline uint16_t cntOnLine(
     return count;
 }
 
+// ------------------------------------
+// Оценка прямой через PROSAC/RANSAC с финальной PCA-аппроксимацией
+// ------------------------------------
 inline bool fitLineRANSAC(
     const posf_t* pts,
     const int cnt,
@@ -1007,6 +1079,9 @@ inline bool fitLineRANSAC(
 
 
 
+// ------------------------------------
+// Приведение нормали к нужному направлению и расчёт угла в градусах
+// ------------------------------------
 inline float angleOfLine(anglemeter_t* am, float nx, float ny, int dir)
 {
     // Тангенциальный вектор (направление линии)
